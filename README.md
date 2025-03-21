@@ -94,10 +94,10 @@ This produces two main executables:
 Example:
 
 ```bash
-./main 30 50 10000
+./main 8 50 10000
 ```
 
-This attempts to factor 30, enumerating possible IC networks up to 50 nodes, and limiting each network to 10,000 rewrite steps.
+This attempts to factor 8, enumerating possible IC networks up to 50 nodes, and limiting each network to 10,000 rewrite steps.
 
 ### Testing
 
