@@ -1,6 +1,6 @@
 CC = /opt/homebrew/Cellar/gcc/14.2.0_1/bin/aarch64-apple-darwin24-gcc-14
 CFLAGS = -std=c11 -Wall -Wextra -O2 -fopenmp
-LDFLAGS = -lm -fopenmp
+LDFLAGS = -lm -lm -fopenmp
 
 SRC_DIR = src
 OBJ_DIR = obj
