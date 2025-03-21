@@ -7,9 +7,10 @@
 // Callback for reporting search progress
 void progress_callback(size_t current_index, bool found_solution) {
     if (found_solution) {
-        printf("Found solution at index %zu!\n", current_index);
+        printf("\nFound solution at index %zu!\n", current_index);
     } else {
-        printf("Searched through %zu indices...\n", current_index);
+        printf("\rSearched through %zu indices...", current_index);
+        fflush(stdout); // Ensure it's displayed immediately
     }
 }
 
