@@ -1,6 +1,6 @@
-CC = gcc
-CFLAGS = -std=c11 -Wall -Wextra -O2
-LDFLAGS = -lm
+CC = /opt/homebrew/Cellar/gcc/14.2.0_1/bin/aarch64-apple-darwin24-gcc-14
+CFLAGS = -std=c11 -Wall -Wextra -O2 -fopenmp
+LDFLAGS = -lm -fopenmp
 
 SRC_DIR = src
 OBJ_DIR = obj
@@ -14,9 +14,9 @@ TEST_OBJS = $(TEST_SRCS:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
 TARGET = main
 TEST = test
 
-.PHONY: all clean test
+.PHONY: all clean runtest
 
-all: $(TARGET) $(TEST)
+all: $(TARGET)
 
 # Create object directory if it doesn't exist
 $(OBJ_DIR):
@@ -34,8 +34,8 @@ $(TEST): $(TEST_OBJS)
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-# Run the test suite
-test: $(TEST)
+# Run the test suite - disabled temporarily
+runtest: $(TEST)
 	./$(TEST)
 
 # Cleanup

@@ -1,0 +1,21 @@
+<example-output>
+./main 6
+Searching for a factorization of 6 with max_nodes=100 and gas_limit=100000
+Searched through 322 indices... (599.9 indices/sec)
+
+Found solution at index 322!
+
+Success! Found a factorization for 6 at index 322
+Factors: 3 * 2 = 6
+IC Net with 5 used nodes out of 100 max nodes
+Gas used: 2 out of 100000 limit
+Input number: 6
+Factors found: 3 * 2 = 6
+Nodes:
+  Node 1: Type=γ, Ports=[(4,0), (2,2), (2,1)]
+  Node 2: Type=δ, Ports=[-, (1,2), (1,1)]
+Graph visualization saved to solution.dot
+You can visualize it with: dot -Tpng solution.dot -o solution.png
+
+Search completed in 0.97 seconds
+</example-output>
