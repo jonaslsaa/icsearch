@@ -34,6 +34,12 @@ void ic_enum_set_progress_callback(ic_enum_state_t *state,
 int ic_enum_build_net(ic_enum_state_t *state, size_t index, ic_net_t *net);
 
 /**
+ * Version of ic_enum_build_net that doesn't rely on state
+ * Used in parallel search to avoid state dependencies
+ */
+int ic_enum_build_net_compatible(ic_enum_state_t *state, size_t index, ic_net_t *net);
+
+/**
  * Build the next net and increment the index
  * @return 1 if a net was built, 0 if enumeration is exhausted
  */
