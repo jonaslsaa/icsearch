@@ -7,12 +7,12 @@
 // Callback for reporting search progress
 void progress_callback(size_t current_index, bool found_solution) {
     static size_t last_reported = 0;
-    static time_t start_time = 0;
+    static struct timespec start_time;
     static bool timer_initialized = false;
     
     // Initialize timer on first call
     if (!timer_initialized) {
-        start_time = time(NULL);
+        clock_gettime(CLOCK_MONOTONIC, &start_time);
         timer_initialized = true;
     }
     
@@ -22,11 +22,15 @@ void progress_callback(size_t current_index, bool found_solution) {
     } else {
         // Only report if significant progress was made (avoid console spam)
         if (current_index - last_reported > 1000 || current_index == 0) {
-            time_t current_time = time(NULL);
-            double elapsed = difftime(current_time, start_time);
+            struct timespec current_time;
+            clock_gettime(CLOCK_MONOTONIC, &current_time);
             
-            // Estimate search rate and time
-            double rate = (elapsed > 0) ? current_index / elapsed : 0;
+            // Calculate elapsed time in seconds with nanosecond precision
+            double elapsed = (current_time.tv_sec - start_time.tv_sec) + 
+                            (current_time.tv_nsec - start_time.tv_nsec) / 1000000000.0;
+            
+            // Ensure we don't divide by zero and have a meaningful rate
+            double rate = (elapsed > 0.001) ? current_index / elapsed : current_index * 1000.0;
             
             // Clear the line and update progress with rate information
             printf("\rSearched through %zu indices... (%.1f indices/sec)", 
@@ -62,15 +66,17 @@ int main(int argc, char **argv) {
     ic_enum_init(&state, max_nodes);
     ic_enum_set_progress_callback(&state, progress_callback);
     
-    // Start timing
-    clock_t start = clock();
+    // Start timing using monotonic clock for wall-clock time
+    struct timespec start_time, end_time;
+    clock_gettime(CLOCK_MONOTONIC, &start_time);
     
     // Run the search
     int solution_index = ic_search_factor(&state, N, max_nodes, gas_limit);
     
     // End timing
-    clock_t end = clock();
-    double elapsed = (double)(end - start) / CLOCKS_PER_SEC;
+    clock_gettime(CLOCK_MONOTONIC, &end_time);
+    double elapsed = (end_time.tv_sec - start_time.tv_sec) + 
+                    (end_time.tv_nsec - start_time.tv_nsec) / 1000000000.0;
     
     if (solution_index >= 0) {
         printf("\nSuccess! Found a factorization for %d at index %d\n", N, solution_index);
