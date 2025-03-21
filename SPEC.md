@@ -1,7 +1,3 @@
-Below is a **comprehensive specification** that you can hand off to a team of senior C engineers. It details a robust, scalable design for **(1) an Interaction Combinators (IC) runtime** and **(2) a Universal Search engine** that enumerates IC programs. The spec is written around C11 best practices, focuses on **bounded memory usage**, and includes testability guidelines. The factoring task is the first practical use case, but the design remains general-purpose.
-
----
-
 # 1. Overview
 
 This project delivers a **universal search** system built on **Interaction Combinators (IC)**. It has two core modules:
