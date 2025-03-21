@@ -1,3 +1,5 @@
 main
 test
 obj/*.o
+*.dot
+*.png
