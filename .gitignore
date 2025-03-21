@@ -3,3 +3,4 @@ test
 obj/*.o
 *.dot
 *.png
+*.xml
