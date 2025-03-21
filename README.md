@@ -153,6 +153,8 @@ The test suite runs standalone and checks:
 
 ## Performance Optimizations
 
+- **Parallel Search**: Utilizes OpenMP to distribute the search workload across multiple CPU cores, with dynamic load balancing for optimal performance.
+
 - **Redex Queue**: Instead of rescanning the entire net for active pairs after each rewrite operation, we maintain a queue of redexes (active pairs) that need to be processed. New potential redexes are added to the queue when ports are connected.
 
 - **Fast Reset**: When building nets from enumeration indices, we use efficient bit-pattern encoding and decoding to quickly construct the graph structure.
@@ -160,6 +162,8 @@ The test suite runs standalone and checks:
 - **Optimized Connection Process**: The connection logic in ic_enum.c efficiently handles the creation of complex port connections with minimal overhead.
 
 - **Selective Scanning**: When the redex queue is empty, we only rescan the net once rather than after every operation, significantly reducing the overhead for highly connected nets.
+
+- **Early Termination**: When any thread finds a valid solution, all other threads will quickly terminate their search.
 
 ---
 
