@@ -32,6 +32,16 @@ typedef struct {
 } ic_node_t;
 
 /**
+ * Represents a potential active pair (redex) of nodes
+ */
+typedef struct {
+    int node_a;
+    int node_b;
+} ic_redex_t;
+
+#define MAX_REDEX_QUEUE 256
+
+/**
  * Interaction Combinator network/graph
  */
 typedef struct {
@@ -40,6 +50,11 @@ typedef struct {
     size_t used_nodes;    // How many nodes currently allocated
     size_t gas_limit;     // Maximum rewrite steps
     size_t gas_used;      // How many rewrite steps used so far
+    
+    // Redex queue for optimization
+    ic_redex_t redex_queue[MAX_REDEX_QUEUE];
+    size_t redex_queue_size;
+    size_t redex_queue_start;
 
     // Factorization context
     int input_number;

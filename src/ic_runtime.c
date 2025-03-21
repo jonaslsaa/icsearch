@@ -17,6 +17,11 @@ ic_net_t *ic_net_create(size_t max_nodes, size_t gas_limit) {
     net->used_nodes = 0;
     net->gas_limit = gas_limit;
     net->gas_used = 0;
+    
+    // Initialize redex queue
+    net->redex_queue_size = 0;
+    net->redex_queue_start = 0;
+    
     net->input_number = 0;
     net->factor_a = 0;
     net->factor_b = 0;
@@ -50,6 +55,65 @@ int ic_net_new_node(ic_net_t *net, ic_node_type_t type) {
     }
     
     return idx;
+}
+
+/**
+ * Add a potential redex to the queue
+ */
+static void ic_net_add_redex(ic_net_t *net, int node_a, int node_b) {
+    // Skip if either node is inactive
+    if (!net->nodes[node_a].is_active || !net->nodes[node_b].is_active) {
+        return;
+    }
+    
+    // Only add if both nodes are connected via principal ports
+    if (net->nodes[node_a].ports[0].connected_node == node_b && 
+        net->nodes[node_a].ports[0].connected_port == 0 &&
+        net->nodes[node_b].ports[0].connected_node == node_a &&
+        net->nodes[node_b].ports[0].connected_port == 0) {
+        
+        // Check if redex queue is full
+        if (net->redex_queue_size >= MAX_REDEX_QUEUE) {
+            return;
+        }
+        
+        // Calculate the insertion position
+        size_t pos = (net->redex_queue_start + net->redex_queue_size) % MAX_REDEX_QUEUE;
+        
+        // Add to queue
+        net->redex_queue[pos].node_a = node_a;
+        net->redex_queue[pos].node_b = node_b;
+        net->redex_queue_size++;
+    }
+}
+
+/**
+ * Get and remove the next redex from the queue
+ * @return true if a redex was retrieved, false if the queue is empty
+ */
+static bool ic_net_get_next_redex(ic_net_t *net, int *node_a, int *node_b) {
+    if (net->redex_queue_size == 0) {
+        return false;
+    }
+    
+    // Get redex from the front of the queue
+    *node_a = net->redex_queue[net->redex_queue_start].node_a;
+    *node_b = net->redex_queue[net->redex_queue_start].node_b;
+    
+    // Move to the next position
+    net->redex_queue_start = (net->redex_queue_start + 1) % MAX_REDEX_QUEUE;
+    net->redex_queue_size--;
+    
+    // Check if the redex is still valid (both nodes active and connected)
+    if (!net->nodes[*node_a].is_active || !net->nodes[*node_b].is_active ||
+        net->nodes[*node_a].ports[0].connected_node != *node_b ||
+        net->nodes[*node_a].ports[0].connected_port != 0 ||
+        net->nodes[*node_b].ports[0].connected_node != *node_a ||
+        net->nodes[*node_b].ports[0].connected_port != 0) {
+        return false;
+    }
+    
+    return true;
 }
 
 void ic_net_connect(ic_net_t *net, int node_a, int port_a, int node_b, int port_b) {
@@ -91,6 +155,12 @@ void ic_net_connect(ic_net_t *net, int node_a, int port_a, int node_b, int port_
     net->nodes[node_a].ports[port_a].connected_port = port_b;
     net->nodes[node_b].ports[port_b].connected_node = node_a;
     net->nodes[node_b].ports[port_b].connected_port = port_a;
+    
+    // Check if we've formed an active pair (both principal ports)
+    if (port_a == 0 && port_b == 0 && 
+        net->nodes[node_a].is_active && net->nodes[node_b].is_active) {
+        ic_net_add_redex(net, node_a, node_b);
+    }
 }
 
 /**
@@ -373,29 +443,69 @@ static bool ic_apply_rewrite(ic_net_t *net, int node_a, int node_b) {
     return false;
 }
 
+/**
+ * Scan the entire net to populate the redex queue
+ */
+static void ic_net_scan_for_redexes(ic_net_t *net) {
+    // Reset the redex queue
+    net->redex_queue_size = 0;
+    net->redex_queue_start = 0;
+    
+    // Scan for active pairs
+    for (size_t i = 0; i < net->used_nodes; i++) {
+        if (!net->nodes[i].is_active) continue;
+        
+        int conn_node = net->nodes[i].ports[0].connected_node;
+        int conn_port = net->nodes[i].ports[0].connected_port;
+        
+        // Only consider pairs where the current node index is less than the connected node
+        // This prevents adding the same pair twice
+        if (conn_node > (int)i && conn_port == 0 && net->nodes[conn_node].is_active) {
+            ic_net_add_redex(net, i, conn_node);
+        }
+    }
+}
+
 int ic_net_reduce(ic_net_t *net) {
     if (!net) return 1;
     
-    bool found_redex = true;
     net->gas_used = 0;
     
-    while (found_redex && net->gas_used < net->gas_limit) {
-        found_redex = false;
+    // Initial scan to populate the redex queue
+    ic_net_scan_for_redexes(net);
+    
+    // Process redexes until queue is empty or gas is exhausted
+    while (net->gas_used < net->gas_limit) {
+        int node_a, node_b;
         
-        // Scan for active pairs
-        for (size_t i = 0; i < net->used_nodes; i++) {
-            if (!net->nodes[i].is_active) continue;
+        // Get the next redex from the queue
+        if (!ic_net_get_next_redex(net, &node_a, &node_b)) {
+            // If queue is empty, scan net again to find any new redexes
+            ic_net_scan_for_redexes(net);
             
-            // Check if principal port connects to another node's principal port
-            int conn_node = net->nodes[i].ports[0].connected_node;
-            int conn_port = net->nodes[i].ports[0].connected_port;
+            // If still no redexes, we're done
+            if (net->redex_queue_size == 0) {
+                break;
+            }
             
-            if (conn_node >= 0 && conn_port == 0 && net->nodes[conn_node].is_active) {
-                // Found active pair, apply rewrite rule
-                if (ic_apply_rewrite(net, i, conn_node)) {
-                    found_redex = true;
-                    net->gas_used++;
-                    break; // Restart scan after modification
+            // Try again
+            continue;
+        }
+        
+        // Apply rewrite rule
+        if (ic_apply_rewrite(net, node_a, node_b)) {
+            net->gas_used++;
+            
+            // When connections change during a rewrite, check newly connected principal ports
+            // to see if they form redexes, and add them to the queue
+            for (size_t i = 0; i < net->used_nodes; i++) {
+                if (!net->nodes[i].is_active) continue;
+                
+                int conn_node = net->nodes[i].ports[0].connected_node;
+                int conn_port = net->nodes[i].ports[0].connected_port;
+                
+                if (conn_node > (int)i && conn_port == 0 && net->nodes[conn_node].is_active) {
+                    ic_net_add_redex(net, i, conn_node);
                 }
             }
         }

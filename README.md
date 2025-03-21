@@ -18,6 +18,7 @@ This repository demonstrates how **Interaction Combinators (IC)** can be used to
     - [Universal Search](#universal-search)
     - [Factoring Example](#factoring-example)
   - [How It Works](#how-it-works)
+  - [Performance Optimizations](#performance-optimizations)
   - [Advanced Topics](#advanced-topics)
 
 ---
@@ -28,9 +29,9 @@ This repository demonstrates how **Interaction Combinators (IC)** can be used to
 
 1. Implements a **runtime** that creates, connects, and rewrites IC nodes (under a *gas limit* to avoid infinite loops).
 2. Implements a **search** that systematically enumerates possible IC networks up to a specified size, executes them, and checks if they solve a target problem.
-3. Demonstrates factoring an integer using this “universal search” approach.
+3. Demonstrates factoring an integer using this "universal search" approach.
 
-**Note**: This is a research-oriented codebase, not a production library. The factoring example is mostly illustrative, showing how a net that rewires correctly can “discover” factors.
+**Note**: This is a research-oriented codebase, not a production library. The factoring example is mostly illustrative, showing how a net that rewires correctly can "discover" factors.
 
 ---
 
@@ -43,6 +44,7 @@ This repository demonstrates how **Interaction Combinators (IC)** can be used to
 │   ├── ic_runtime.h
 │   ├── ic_search.c    # Enumeration/search logic
 │   ├── ic_search.h
+│   ├── ic_enum.c      # Optimization of enumeration process 
 │   ├── main.c         # CLI tool that factors an integer using the search
 │   └── main_test.c    # Test suite
 ├── Makefile           # Build script
@@ -51,8 +53,9 @@ This repository demonstrates how **Interaction Combinators (IC)** can be used to
 └── .gitignore
 ```
 
-- **`ic_runtime.[ch]`**: Core IC data structures and rewrite mechanics.
+- **`ic_runtime.[ch]`**: Core IC data structures and rewrite mechanics with redex queue optimization.
 - **`ic_search.[ch]`**: Enumerates and evaluates IC nets, checking if they yield a factorization.
+- **`ic_enum.c`**: Implements optimized enumeration with fast pattern-based connections.
 - **`main.c`**: Command-line interface for factoring a given integer.
 - **`main_test.c`**: Self-contained test program covering various features (rewrites, gas limits, etc.).
 - **`Makefile`**: Provides targets for building and testing.
@@ -119,14 +122,15 @@ The test suite runs standalone and checks:
 
 - **Nodes**: Each node has type (δ, γ, or ε) and three ports (principal and two auxiliaries).
 - **Connections**: Ports connect to other ports (bidirectional).  
-- **Rewriting**: If two nodes’ *principal* ports are connected, they form an *active pair*. A local rewrite rule is applied based on the pair’s types, potentially rewiring ports or creating new nodes.
-- **Gas Limit**: Each rewrite step consumes “gas.” If the net rewrites too many steps, it stops early.
+- **Rewriting**: If two nodes' *principal* ports are connected, they form an *active pair*. A local rewrite rule is applied based on the pair's types, potentially rewiring ports or creating new nodes.
+- **Redex Queue**: A performance optimization that tracks active pairs in a queue instead of rescanning the entire net after each rewrite.
+- **Gas Limit**: Each rewrite step consumes "gas." If the net rewrites too many steps, it stops early.
 
 ### Universal Search
 
-- **Enumeration**: The system systematically generates candidate IC networks up to `max_nodes`. Each network is built from a numeric “index” that encodes node types and connections.
+- **Enumeration**: The system systematically generates candidate IC networks up to `max_nodes`. Each network is built from a numeric "index" that encodes node types and connections.
 - **Execution**: For each enumerated net, the IC runtime runs it.  
-- **Check**: If the net’s final state encodes a factorization for a given integer N, the search returns a solution.
+- **Check**: If the net's final state encodes a factorization for a given integer N, the search returns a solution.
 
 ### Factoring Example
 
@@ -144,6 +148,18 @@ The test suite runs standalone and checks:
 5. **Reduce** the network (`ic_net_reduce`) until no active pairs remain or gas is exhausted.  
 6. **Check** if `net->factor_found` and `net->factor_a * net->factor_b == N`.  
 7. If found, print the factors and optionally export a DOT file (`solution.dot`) for visualization.
+
+---
+
+## Performance Optimizations
+
+- **Redex Queue**: Instead of rescanning the entire net for active pairs after each rewrite operation, we maintain a queue of redexes (active pairs) that need to be processed. New potential redexes are added to the queue when ports are connected.
+
+- **Fast Reset**: When building nets from enumeration indices, we use efficient bit-pattern encoding and decoding to quickly construct the graph structure.
+
+- **Optimized Connection Process**: The connection logic in ic_enum.c efficiently handles the creation of complex port connections with minimal overhead.
+
+- **Selective Scanning**: When the redex queue is empty, we only rescan the net once rather than after every operation, significantly reducing the overhead for highly connected nets.
 
 ---
 
