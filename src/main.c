@@ -6,11 +6,35 @@
 
 // Callback for reporting search progress
 void progress_callback(size_t current_index, bool found_solution) {
+    static size_t last_reported = 0;
+    static time_t start_time = 0;
+    static bool timer_initialized = false;
+    
+    // Initialize timer on first call
+    if (!timer_initialized) {
+        start_time = time(NULL);
+        timer_initialized = true;
+    }
+    
     if (found_solution) {
+        // Clear the current line and report solution
         printf("\nFound solution at index %zu!\n", current_index);
     } else {
-        printf("\rSearched through %zu indices...", current_index);
-        fflush(stdout); // Ensure it's displayed immediately
+        // Only report if significant progress was made (avoid console spam)
+        if (current_index - last_reported > 1000 || current_index == 0) {
+            time_t current_time = time(NULL);
+            double elapsed = difftime(current_time, start_time);
+            
+            // Estimate search rate and time
+            double rate = (elapsed > 0) ? current_index / elapsed : 0;
+            
+            // Clear the line and update progress with rate information
+            printf("\rSearched through %zu indices... (%.1f indices/sec)", 
+                   current_index, rate);
+            fflush(stdout); // Ensure it displays immediately
+            
+            last_reported = current_index;
+        }
     }
 }
 
