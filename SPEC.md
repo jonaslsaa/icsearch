@@ -894,3 +894,150 @@ Key tests to add:
 - **main_test.c**: Exercise rewriting logic, enumeration correctness, and factorization check.  
 
 With these clarifications in place, your engineers should have the **complete, detailed** information needed to avoid guesswork and implement a consistent solution.
+
+The specification with the expanded sections looks good. Here are some additional technical notes you can append to further clarify implementation details for your engineering team:
+
+# Technical Addendum
+
+## A. Rewrite Rule Reference
+
+```
++-------+-------+---------------------------------------------+
+| Agent1| Agent2| Rewrite Pattern                            |
++-------+-------+---------------------------------------------+
+| δ     | δ     | Connect aux1↔aux2 and aux2↔aux1 crosswise  |
+|       |       | Delete both δ agents                        |
++-------+-------+---------------------------------------------+
+| γ     | γ     | Connect aux1↔aux1 and aux2↔aux2 straight   |
+|       |       | Delete both γ agents                        |
++-------+-------+---------------------------------------------+
+| δ     | γ     | Create two new agents:                      |
+|       |       | - δ': Connect to δ.aux1 and γ.aux1         |
+|       |       | - γ': Connect to δ.aux2 and γ.aux2         |
+|       |       | Delete original δ and γ agents             |
++-------+-------+---------------------------------------------+
+| ε     | any   | Delete the ε agent                          |
+|       |       | Leave the other agent's aux ports intact    |
++-------+-------+---------------------------------------------+
+```
+
+## B. Port Connection Strategy
+
+During `ic_net_connect()`, follow these rules:
+- If either port is already connected, disconnect it first
+- Update both ports symmetrically (bidirectional connection)
+- Example implementation:
+  ```c
+  void ic_net_connect(ic_net_t *net, int node_a, int port_a, int node_b, int port_b) {
+      // Validate indices
+      if (node_a < 0 || node_a >= net->used_nodes || 
+          node_b < 0 || node_b >= net->used_nodes ||
+          port_a < 0 || port_a >= 3 ||
+          port_b < 0 || port_b >= 3) {
+          return; // Invalid connection
+      }
+      
+      // Disconnect any existing connections
+      if (net->nodes[node_a].ports[port_a].connected_node != -1) {
+          int old_node = net->nodes[node_a].ports[port_a].connected_node;
+          int old_port = net->nodes[node_a].ports[port_a].connected_port;
+          net->nodes[old_node].ports[old_port].connected_node = -1;
+          net->nodes[old_node].ports[old_port].connected_port = -1;
+      }
+      
+      if (net->nodes[node_b].ports[port_b].connected_node != -1) {
+          int old_node = net->nodes[node_b].ports[port_b].connected_node;
+          int old_port = net->nodes[node_b].ports[port_b].connected_port;
+          net->nodes[old_node].ports[old_port].connected_node = -1;
+          net->nodes[old_node].ports[old_port].connected_port = -1;
+      }
+      
+      // Connect bidirectionally
+      net->nodes[node_a].ports[port_a].connected_node = node_b;
+      net->nodes[node_a].ports[port_a].connected_port = port_b;
+      net->nodes[node_b].ports[port_b].connected_node = node_a;
+      net->nodes[node_b].ports[port_b].connected_port = port_a;
+  }
+  ```
+
+## C. Factorization Input/Output Encoding
+
+For the initial implementation, use this approach:
+1. Store the number to factor in `net->input_number`
+2. During reduction, the net can "read" this value
+3. When a potential factor is found, the net can write to:
+   ```c
+   net->factor_a = ...;
+   net->factor_b = ...;
+   net->factor_found = true;
+   ```
+4. Later implementations could replace this with pure IC representations
+
+## D. Node Reuse During Reduction
+
+When removing nodes during reduction, consider these strategies:
+1. **Mark as inactive**: Set `node->is_active = false` and skip in future scans
+2. **Free slot approach**: Return node indices to a free list for reuse
+3. **Compaction**: If node reuse is common, periodically compact the array to reclaim space
+
+## E. Enumeration Optimizations
+
+For large searches:
+1. Use a **bitwise encoding** scheme to efficiently represent graph structures
+2. Implement a **skip ahead** mechanism to jump over large ranges of invalid nets
+3. Consider a **pruning strategy** that detects and avoids isomorphic graphs
+
+## F. Debugging Visualization
+
+Add support for generating graph visualizations:
+```c
+// Export a Graphviz DOT format for visualization
+void ic_net_export_dot(const ic_net_t *net, FILE *out);
+```
+
+## G. Performance Considerations
+
+Critical sections to optimize:
+1. **Active pair detection**: The main bottleneck will likely be scanning for redexes
+2. **Graph enumeration**: For large numbers, more sophisticated encoding/decoding may be needed
+3. **Consider bloom filters**: For duplicate detection in enumeration
+
+## H. Edge Cases & Handling
+
+Consider these special situations:
+1. **Prime numbers**: The factorization will only find trivial factors (1,N)
+2. **Perfect squares**: Special case where factor_a == factor_b
+3. **I/O handling**: Standardize how inputs are encoded and outputs are decoded
+
+## I. Complete Reduction Algorithm
+
+```c
+int ic_net_reduce(ic_net_t *net) {
+    bool found_redex = true;
+    size_t gas = net->gas_limit;
+    
+    while (found_redex && gas > 0) {
+        found_redex = false;
+        
+        // Scan for active pairs
+        for (size_t i = 0; i < net->used_nodes; i++) {
+            if (!net->nodes[i].is_active) continue;
+            
+            // Check if principal port connects to another node's principal port
+            int conn_node = net->nodes[i].ports[0].connected_node;
+            int conn_port = net->nodes[i].ports[0].connected_port;
+            
+            if (conn_node >= 0 && conn_port == 0 && net->nodes[conn_node].is_active) {
+                // Found active pair, apply rewrite rule
+                if (ic_apply_rewrite(net, i, conn_node)) {
+                    found_redex = true;
+                    gas--;
+                    break; // Restart scan after modification
+                }
+            }
+        }
+    }
+    
+    return (gas > 0) ? 0 : 1; // 0: fully reduced, 1: gas exhausted
+}
+```
