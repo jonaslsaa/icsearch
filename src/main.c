@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <math.h>
 #include "ic_runtime.h"
 #include "ic_search.h"
 
@@ -110,7 +111,28 @@ int main(int argc, char **argv) {
         
         ic_net_free(solution_net);
     } else {
+        // More informative message about why factorization failed
         printf("\nFailed to find a factorization for %d\n", N);
+        
+        if (state.current_index >= 1000000) {
+            printf("Reached search limit (examined %zu indices)\n", state.current_index);
+            printf("Consider increasing the search space or using a larger max_nodes value\n");
+        } else {
+            printf("Exhausted search space after examining %zu indices\n", state.current_index);
+            
+            // If the number is prime, mention that
+            bool is_probably_prime = true;
+            for (int i = 2; i <= sqrt(N); i++) {
+                if (N % i == 0) {
+                    is_probably_prime = false;
+                    break;
+                }
+            }
+            
+            if (is_probably_prime && N > 3) {
+                printf("Note: %d appears to be prime, so it cannot be factored into integers > 1\n", N);
+            }
+        }
     }
     
     printf("\nSearch completed in %.2f seconds\n", elapsed);
